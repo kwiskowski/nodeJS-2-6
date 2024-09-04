@@ -1,8 +1,7 @@
 [
   {
-    "id": "2bd39434-643b-40bb-a2e1-12e5e33362eb",
-    "name": "Cris",
-    "email": "cris.polanski@gmail.com",
+    "name": "maciek",
+    "email": "maciek.polanski@gmail.com",
     "phone": "666111333"
   },
   {
@@ -58,5 +57,11 @@
     "name": "kamil",
     "email": "kamil.nowicki@gmial.com",
     "phone": "+48666111333"
+  },
+  {
+    "id": "9c7a3376-a453-47cd-97b6-df4fcc089075",
+    "name": "jan nowak",
+    "email": "jan.nowak@gmial.com",
+    "phone": "666111333"
   }
 ]

@@ -25,7 +25,7 @@ const getContactById = async (contactId) => {
     throw err;
   }
 
-  const contact = contacts.filter((contact) => contact.id === contactId);
+  const contact = contacts.find((contact) => contact.id === contactId);
   if (contact.length === 0) {
     return null;
   }
@@ -101,7 +101,6 @@ const updateContact = async (contactId, body) => {
   }
 
   const newContact = {
-    id: uuidv4(),
     ...body,
   };
 
