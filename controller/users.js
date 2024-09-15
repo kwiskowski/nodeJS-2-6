@@ -1,7 +1,11 @@
 const User = require("../service/schemas");
+const path = require("path");
+const fs = require("fs");
 const Joi = require("joi");
 const passport = require("passport");
 const jwt = require("jsonwebtoken");
+const gravatar = require("gravatar");
+const Jimp = require("jimp");
 
 const schema = Joi.object({
   password: Joi.string().required(),
@@ -15,6 +19,7 @@ const schema = Joi.object({
     .valid("starter", "pro", "business")
     .default("starter"),
   token: Joi.string().default(null),
+  avatarURL: Joi.string(),
 });
 
 const auth = (req, res, next) => {
@@ -55,9 +60,12 @@ const register = async (req, res, next) => {
   }
 
   try {
+    const url = gravatar.url(req.body.email, { s: "250", r: "pg", d: "404" });
+
     const newUser = new User({
       email: req.body.email,
       subscription: "starter",
+      avatarURL: url,
     });
     await newUser.setPassword(req.body.password);
     await newUser.save();
@@ -194,6 +202,7 @@ const updateSub = async (req, res, next) => {
   }
 
   try {
+    const userId = req.user._id;
     const user = await User.findById(userId);
 
     if (!user) {
@@ -222,6 +231,60 @@ const updateSub = async (req, res, next) => {
   }
 };
 
+const updateAvatar = async (req, res, next) => {
+  const userId = req.user._id;
+  const { error } = req.file;
+  const avatarPath = req.file.path;
+
+  if (error || !req.file) {
+    return res.status(400).json({
+      status: "400 Bad Request",
+      contentType: "application/json",
+      responseBody: {
+        message: "Invalid avatar file.",
+      },
+    });
+  }
+
+  try {
+    const image = await Jimp.read(avatarPath);
+
+    image.resize(250, 250);
+    const uniqueFilename = `${userId}-${Date.now()}.jpg`;
+    const avatarsDir = path.join(__dirname, "..", "public", "avatars");
+    const newAvatarPath = path.join(avatarsDir, uniqueFilename);
+
+    await fs.promises.mkdir(avatarsDir, { recursive: true });
+    await image.writeAsync(newAvatarPath);
+    await fs.promises.unlink(avatarPath);
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(401).json({
+        status: "401 Unauthorized",
+        contentType: "application/json",
+        responseBody: {
+          message: "Not authorized",
+        },
+      });
+    }
+
+    user.avatarURL = `/avatars/${uniqueFilename}`;
+    await user.save();
+
+    res.json({
+      status: "200 OK",
+      contentType: "application/json",
+      requestBody: {
+        avatarURL: user.avatarURL,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -229,4 +292,5 @@ module.exports = {
   auth,
   current,
   updateSub,
+  updateAvatar,
 };
