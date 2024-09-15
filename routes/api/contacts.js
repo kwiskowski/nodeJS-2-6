@@ -1,5 +1,5 @@
 const express = require("express");
-const ctrlContact = require("../../controler/contacts");
+const ctrlContact = require("../../controller/contacts");
 const router = express.Router();
 
 router.get("/", ctrlContact.get);

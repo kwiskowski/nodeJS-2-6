@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const bCrypt = require("bcryptjs");
 
 const contact = new Schema({
   name: {
@@ -16,7 +17,14 @@ const contact = new Schema({
     type: Boolean,
     default: false,
   },
+  owner: {
+    type: Schema.Types.ObjectId,
+    ref: "user",
+    required: true,
+  },
 });
+
+// -------------------------------------------------------------------------------------------
 
 const user = new Schema({
   password: {
@@ -38,6 +46,14 @@ const user = new Schema({
     default: null,
   },
 });
+
+user.methods.setPassword = async function (password) {
+  this.password = await bCrypt.hash(password, 10);
+};
+
+user.methods.validatePassword = async function (password) {
+  return await bCrypt.compare(password, this.password);
+};
 
 const Contact = mongoose.model("contacts", contact);
 const User = mongoose.model("users", user);
