@@ -1,4 +1,4 @@
-const User = require("../service/schemas");
+const { User } = require("../service/schemas");
 const path = require("path");
 const fs = require("fs");
 const Joi = require("joi");
@@ -164,7 +164,7 @@ const current = async (req, res, next) => {
     const userId = req.user._id;
     const user = await User.findById(userId);
 
-    if (!user || !user.token) {
+    if (!user) {
       return res.status(401).json({
         status: "401 Unauthorized",
         contentType: "application/json",
