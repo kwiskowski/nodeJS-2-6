@@ -38,12 +38,15 @@ const user = new Schema({
   },
   subscription: {
     type: String,
-    enum: ["starter", "pro", "business"],
+    enum: ["starter", "pro", "buisness"],
     default: "starter",
   },
   token: {
     type: String,
     default: null,
+  },
+  avatarURL: {
+    type: String,
   },
 });
 

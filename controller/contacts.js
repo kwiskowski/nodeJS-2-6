@@ -1,18 +1,5 @@
 const service = require("../service");
-const Joi = require("joi");
-
-const schema = Joi.object({
-  name: Joi.string().required(),
-  email: Joi.string()
-    .email({
-      minDomainSegments: 2,
-      tlds: { allow: ["com", "net"] },
-    })
-    .required(),
-  phone: Joi.number().integer().positive().required(),
-  favorite: Joi.bool(),
-  owner: Joi.string().alphanum().required(),
-});
+const { contactSchema } = require("../service/joi");
 
 const get = async (req, res, next) => {
   try {
@@ -82,7 +69,7 @@ const remove = async (req, res, next) => {
 };
 
 const create = async (req, res, next) => {
-  const { error } = schema.validate(req.body);
+  const { error } = contactSchema.validate(req.body);
 
   if (error) {
     return res.status(400).json({
@@ -105,7 +92,7 @@ const create = async (req, res, next) => {
 
 const update = async (req, res, next) => {
   const id = req.params.contactId;
-  const { error } = schema.validate(req.body);
+  const { error } = contactSchema.validate(req.body);
 
   if (error) {
     return res.status(400).json({

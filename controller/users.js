@@ -1,39 +1,16 @@
-const User = require("../service/schemas");
-const Joi = require("joi");
-const passport = require("passport");
+const { User } = require("../service/schemas");
+const path = require("path");
+const fs = require("fs");
+const gravatar = require("gravatar");
+const Jimp = require("jimp");
+const { userSchema } = require("../service/joi");
+const auth = require("../service/auth");
 const jwt = require("jsonwebtoken");
-
-const schema = Joi.object({
-  password: Joi.string().required(),
-  email: Joi.string()
-    .email({
-      minDomainSegments: 2,
-      tlds: { allow: ["com", "net"] },
-    })
-    .required(),
-  subscription: Joi.string()
-    .valid("starter", "pro", "business")
-    .default("starter"),
-  token: Joi.string().default(null),
-});
-
-const auth = (req, res, next) => {
-  passport.authenticate("jwt", { session: false }, (err, user) => {
-    if (!user || err) {
-      return res.status(401).json({
-        status: "401 Unauthorized",
-        contentType: "application/json",
-        responseBody: { message: "Not authorized" },
-      });
-    }
-
-    req.user = user;
-    next();
-  })(req, res, next);
-};
+const secret = process.env.AUTH_SECRET;
+// _________________________________________________________________
 
 const register = async (req, res, next) => {
-  const { error } = schema.validate(req.body);
+  const { error } = userSchema.validate(req.body);
   const user = await User.findOne({ email: req.body.email });
 
   if (error) {
@@ -55,9 +32,12 @@ const register = async (req, res, next) => {
   }
 
   try {
+    const url = gravatar.url(req.body.email, { s: "250", r: "pg", d: "404" });
+
     const newUser = new User({
       email: req.body.email,
       subscription: "starter",
+      avatarURL: url,
     });
     await newUser.setPassword(req.body.password);
     await newUser.save();
@@ -77,8 +57,10 @@ const register = async (req, res, next) => {
   }
 };
 
+// -------------------------------------------------------------------------------------------
+
 const login = async (req, res, next) => {
-  const { error } = schema.validate(req.body);
+  const { error } = userSchema.validate(req.body);
 
   if (error) {
     return res.status(400).json({
@@ -115,9 +97,8 @@ const login = async (req, res, next) => {
       id: user._id,
       username: user.username,
     };
-    const secret = process.env.AUTH_SECRET;
-    const token = jwt.sign(payload, secret, { expiresIn: "12h" });
 
+    const token = jwt.sign(payload, secret, { expiresIn: "12h" });
     user.token = token;
     await user.save();
 
@@ -137,10 +118,11 @@ const login = async (req, res, next) => {
   }
 };
 
+// ----------------------------------------------------------------------------------------
+
 const logout = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
+    const user = req.user;
 
     user.token = null;
     await user.save();
@@ -151,17 +133,18 @@ const logout = async (req, res, next) => {
   }
 };
 
+// ---------------------------------------------------------------------------------------
+
 const current = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
+    const user = req.user;
 
-    if (!user || !user.token) {
+    if (!user) {
       return res.status(401).json({
         status: "401 Unauthorized",
         contentType: "application/json",
         responseBody: {
-          message: "Not authorized",
+          message: "Not authorizedCURRENT",
         },
       });
     }
@@ -170,8 +153,8 @@ const current = async (req, res, next) => {
       status: "200 OK",
       contentType: "application/json",
       responseBody: {
-        email: req.user.email,
-        subscription: req.user.subscription,
+        email: user.email,
+        subscription: user.subscription,
       },
     });
   } catch (err) {
@@ -179,8 +162,9 @@ const current = async (req, res, next) => {
   }
 };
 
+// ---------------------------------------------------------------------
+
 const updateSub = async (req, res, next) => {
-  const userId = req.user._id;
   const { error } = req.body;
 
   if (error || !req.body.subscription) {
@@ -188,20 +172,19 @@ const updateSub = async (req, res, next) => {
       status: "400 Bad Request",
       contentType: "application/json",
       responseBody: {
-        message: "Invalid subscription type",
+        message: "Invalid subscription typeUPDATE SUB",
       },
     });
   }
 
   try {
-    const user = await User.findById(userId);
-
+    const user = req.user;
     if (!user) {
       return res.status(401).json({
         status: "401 Unauthorized",
         contentType: "application/json",
         responseBody: {
-          message: "Not authorized",
+          message: "Not authorizedUPDATE",
         },
       });
     }
@@ -222,6 +205,60 @@ const updateSub = async (req, res, next) => {
   }
 };
 
+// ----------------------------------------------------------------------------
+
+const updateAvatar = async (req, res, next) => {
+  const user = req.user;
+  const { error } = req.file;
+  const avatarPath = req.file.path;
+
+  if (error || !req.file) {
+    return res.status(400).json({
+      status: "400 Bad Request",
+      contentType: "application/json",
+      responseBody: {
+        message: "Invalid avatar file.",
+      },
+    });
+  }
+
+  try {
+    // const image = await Jimp.read(avatarPath);
+    // image.resize(250, 250);
+
+    const uniqueFilename = `${user}-${Date.now()}.jpg`;
+    const avatarsDir = path.join(__dirname, "..", "public", "avatars");
+    path.join(avatarsDir, uniqueFilename);
+
+    await fs.promises.mkdir(avatarsDir, { recursive: true });
+    // await image.writeAsync(newAvatarPath);
+    await fs.promises.unlink(avatarPath);
+
+    if (!user) {
+      return res.status(401).json({
+        status: "401 Unauthorized",
+        contentType: "application/json",
+        responseBody: {
+          message: "Not authorized",
+        },
+      });
+    }
+
+    user.avatarURL = `/avatars/${uniqueFilename}`;
+    await user.save();
+
+    res.json({
+      status: "200 OK",
+      contentType: "application/json",
+      requestBody: {
+        avatarURL: user.avatarURL,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -229,4 +266,5 @@ module.exports = {
   auth,
   current,
   updateSub,
+  updateAvatar,
 };
