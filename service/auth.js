@@ -6,7 +6,7 @@ const auth = (req, res, next) => {
       return res.status(401).json({
         status: "401 Unauthorized",
         contentType: "application/json",
-        responseBody: { message: "Not authorized" },
+        responseBody: { message: "Not authorizedAUTH" },
       });
     }
 

@@ -3,14 +3,14 @@ const path = require("path");
 const fs = require("fs");
 const gravatar = require("gravatar");
 const Jimp = require("jimp");
-const schema = require("../service/joi");
+const { userSchema } = require("../service/joi");
 const auth = require("../service/auth");
 const jwt = require("jsonwebtoken");
 const secret = process.env.AUTH_SECRET;
 // _________________________________________________________________
 
 const register = async (req, res, next) => {
-  const { error } = schema.validate(req.body);
+  const { error } = userSchema.validate(req.body);
   const user = await User.findOne({ email: req.body.email });
 
   if (error) {
@@ -57,8 +57,10 @@ const register = async (req, res, next) => {
   }
 };
 
+// -------------------------------------------------------------------------------------------
+
 const login = async (req, res, next) => {
-  const { error } = schema.validate(req.body);
+  const { error } = userSchema.validate(req.body);
 
   if (error) {
     return res.status(400).json({
@@ -116,10 +118,11 @@ const login = async (req, res, next) => {
   }
 };
 
+// ----------------------------------------------------------------------------------------
+
 const logout = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
+    const user = req.user;
 
     user.token = null;
     await user.save();
@@ -130,17 +133,18 @@ const logout = async (req, res, next) => {
   }
 };
 
+// ---------------------------------------------------------------------------------------
+
 const current = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
+    const user = req.user;
 
-    if (!user || !user.token) {
+    if (!user) {
       return res.status(401).json({
         status: "401 Unauthorized",
         contentType: "application/json",
         responseBody: {
-          message: "Not authorized",
+          message: "Not authorizedCURRENT",
         },
       });
     }
@@ -149,14 +153,16 @@ const current = async (req, res, next) => {
       status: "200 OK",
       contentType: "application/json",
       responseBody: {
-        email: req.user.email,
-        subscription: req.user.subscription,
+        email: user.email,
+        subscription: user.subscription,
       },
     });
   } catch (err) {
     next(err);
   }
 };
+
+// ---------------------------------------------------------------------
 
 const updateSub = async (req, res, next) => {
   const { error } = req.body;
@@ -172,15 +178,13 @@ const updateSub = async (req, res, next) => {
   }
 
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
-
+    const user = req.user;
     if (!user) {
       return res.status(401).json({
         status: "401 Unauthorized",
         contentType: "application/json",
         responseBody: {
-          message: "Not authorized",
+          message: "Not authorizedUPDATE",
         },
       });
     }
@@ -200,6 +204,8 @@ const updateSub = async (req, res, next) => {
     next(err);
   }
 };
+
+// ----------------------------------------------------------------------------
 
 const updateAvatar = async (req, res, next) => {
   const userId = req.user._id;
