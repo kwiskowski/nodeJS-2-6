@@ -172,7 +172,7 @@ const updateSub = async (req, res, next) => {
       status: "400 Bad Request",
       contentType: "application/json",
       responseBody: {
-        message: "Invalid subscription type",
+        message: "Invalid subscription typeUPDATE SUB",
       },
     });
   }
@@ -208,7 +208,7 @@ const updateSub = async (req, res, next) => {
 // ----------------------------------------------------------------------------
 
 const updateAvatar = async (req, res, next) => {
-  const userId = req.user._id;
+  const user = req.user;
   const { error } = req.file;
   const avatarPath = req.file.path;
 
@@ -223,18 +223,16 @@ const updateAvatar = async (req, res, next) => {
   }
 
   try {
-    const image = await Jimp.read(avatarPath);
+    // const image = await Jimp.read(avatarPath);
+    // image.resize(250, 250);
 
-    image.resize(250, 250);
-    const uniqueFilename = `${userId}-${Date.now()}.jpg`;
+    const uniqueFilename = `${user}-${Date.now()}.jpg`;
     const avatarsDir = path.join(__dirname, "..", "public", "avatars");
-    const newAvatarPath = path.join(avatarsDir, uniqueFilename);
+    path.join(avatarsDir, uniqueFilename);
 
     await fs.promises.mkdir(avatarsDir, { recursive: true });
-    await image.writeAsync(newAvatarPath);
+    // await image.writeAsync(newAvatarPath);
     await fs.promises.unlink(avatarPath);
-
-    const user = await User.findById(userId);
 
     if (!user) {
       return res.status(401).json({
