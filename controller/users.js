@@ -1,41 +1,13 @@
 const { User } = require("../service/schemas");
 const path = require("path");
 const fs = require("fs");
-const Joi = require("joi");
-const passport = require("passport");
-const jwt = require("jsonwebtoken");
 const gravatar = require("gravatar");
 const Jimp = require("jimp");
-
-const schema = Joi.object({
-  password: Joi.string().required(),
-  email: Joi.string()
-    .email({
-      minDomainSegments: 2,
-      tlds: { allow: ["com", "net"] },
-    })
-    .required(),
-  subscription: Joi.string()
-    .valid("starter", "pro", "business")
-    .default("starter"),
-  token: Joi.string().default(null),
-  avatarURL: Joi.string(),
-});
-
-const auth = (req, res, next) => {
-  passport.authenticate("jwt", { session: false }, (err, user) => {
-    if (!user || err) {
-      return res.status(401).json({
-        status: "401 Unauthorized",
-        contentType: "application/json",
-        responseBody: { message: "Not authorized" },
-      });
-    }
-
-    req.user = user;
-    next();
-  })(req, res, next);
-};
+const schema = require("../service/joi");
+const auth = require("../service/auth");
+const jwt = require("jsonwebtoken");
+const secret = process.env.AUTH_SECRET;
+// _________________________________________________________________
 
 const register = async (req, res, next) => {
   const { error } = schema.validate(req.body);
@@ -123,9 +95,8 @@ const login = async (req, res, next) => {
       id: user._id,
       username: user.username,
     };
-    const secret = process.env.AUTH_SECRET;
-    const token = jwt.sign(payload, secret, { expiresIn: "12h" });
 
+    const token = jwt.sign(payload, secret, { expiresIn: "12h" });
     user.token = token;
     await user.save();
 
@@ -164,7 +135,7 @@ const current = async (req, res, next) => {
     const userId = req.user._id;
     const user = await User.findById(userId);
 
-    if (!user) {
+    if (!user || !user.token) {
       return res.status(401).json({
         status: "401 Unauthorized",
         contentType: "application/json",
@@ -188,7 +159,6 @@ const current = async (req, res, next) => {
 };
 
 const updateSub = async (req, res, next) => {
-  const userId = req.user._id;
   const { error } = req.body;
 
   if (error || !req.body.subscription) {
