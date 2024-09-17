@@ -13,6 +13,8 @@ const userSchema = Joi.object({
     .default("starter"),
   token: Joi.string().default(null),
   avatarURL: Joi.string(),
+  verify: Joi.boolean().default(false),
+  verificationToken: Joi.string(),
 });
 
 const contactSchema = Joi.object({
