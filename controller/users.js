@@ -2,12 +2,25 @@ const { User } = require("../service/schemas");
 const path = require("path");
 const fs = require("fs");
 const gravatar = require("gravatar");
-const Jimp = require("jimp");
+// const { Jimp } = require("jimp");
+const service = require("../service");
 const { userSchema } = require("../service/joi");
 const auth = require("../service/auth");
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
+const sgMail = require("@sendgrid/mail");
+const nodemailer = require("nodemailer");
 const secret = process.env.AUTH_SECRET;
+sgMail.setApiKey(process.env.API_KEY);
 // _________________________________________________________________
+
+const transporter = nodemailer.createTransport({
+  service: "SendGrid",
+  auth: {
+    user: "apikey",
+    pass: process.env.API_KEY,
+  },
+});
 
 const register = async (req, res, next) => {
   const { error } = userSchema.validate(req.body);
@@ -33,14 +46,25 @@ const register = async (req, res, next) => {
 
   try {
     const url = gravatar.url(req.body.email, { s: "250", r: "pg", d: "404" });
+    const newToken = uuidv4();
 
     const newUser = new User({
       email: req.body.email,
       subscription: "starter",
       avatarURL: url,
+      verificationToken: newToken,
     });
     await newUser.setPassword(req.body.password);
     await newUser.save();
+
+    const mailOptions = {
+      from: "krzysztof.wiskowski@gmail.com",
+      to: "krzysztof.wiskowski@gmail.com",
+      subject: "Email Verification",
+      html: `<p>Please verify your email by clicking on the following link: <a href="http://localhost:3000/api/users/verify/${newToken}">Verify Email</a></p>`,
+    };
+
+    await transporter.sendMail(mailOptions);
 
     res.status(201).json({
       status: "201 Created",
@@ -77,6 +101,15 @@ const login = async (req, res, next) => {
       status: "401 Unauthorized",
       responseBody: {
         message: "User with this email doesn't exist",
+      },
+    });
+  }
+
+  if (user.verify === false) {
+    return res.status(401).json({
+      status: "401 Unauthorized",
+      responseBody: {
+        message: "User is not verified",
       },
     });
   }
@@ -226,7 +259,7 @@ const updateAvatar = async (req, res, next) => {
     // const image = await Jimp.read(avatarPath);
     // image.resize(250, 250);
 
-    const uniqueFilename = `${user}-${Date.now()}.jpg`;
+    const uniqueFilename = `${user}-${Date.now()}.png`;
     const avatarsDir = path.join(__dirname, "..", "public", "avatars");
     path.join(avatarsDir, uniqueFilename);
 
@@ -259,6 +292,107 @@ const updateAvatar = async (req, res, next) => {
   }
 };
 
+// -------------------------------------------------------------
+
+const verifyEmail = async (req, res, next) => {
+  const verificationToken = req.params.verificationToken;
+  const { error } = req.body;
+
+  if (error) {
+    return res.status(400).json({
+      status: "400 Bad Request",
+      contentType: "application/json",
+      responseBody: {
+        message: error.message,
+      },
+    });
+  }
+
+  try {
+    const user = await service.getUserByVerToken(verificationToken);
+
+    if (!user) {
+      return res.status(404).json({
+        status: "404 Not Found",
+        contentType: "application/json",
+        responseBody: {
+          message: "User not found",
+        },
+      });
+    }
+
+    user.verify = true;
+    user.verificationToken = null;
+    await user.save();
+
+    res.json({
+      status: "200 OK",
+      contentType: "application/json",
+      responseBody: {
+        message: "Verification successful",
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// --------------------------------------------------------------------------------
+
+const sendVerification = async (req, res, next) => {
+  const verificationSchema = userSchema.fork(["password"], (userSchema) =>
+    userSchema.optional()
+  );
+  const { error } = verificationSchema.validate(req.body);
+
+  if (error) {
+    return res.status(400).json({
+      status: "400 Bad Request",
+      contentType: "application/json",
+      responseBody: {
+        message: error.message,
+      },
+    });
+  }
+
+  try {
+    const user = await User.findOne({ email: req.body.email });
+
+    if (user.verify === true) {
+      return res.status(400).json({
+        status: "400 Bad Request",
+        contentType: "application/json",
+        responseBody: {
+          message: "Verification has already been passed",
+        },
+      });
+    }
+    const newToken = uuidv4();
+
+    user.verificationToken = newToken;
+    await user.save();
+
+    const mailOptions = {
+      from: "krzysztof.wiskowski@gmail.com",
+      to: "krzysztof.wiskowski@gmail.com",
+      subject: "Email Verification",
+      html: `<p>Please verify your email by clicking on the following link: <a href="http://localhost:3000/api/users/verify/${newToken}">Verify Email</a></p>`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({
+      status: "200 OK",
+      contentType: "application/json",
+      responseBody: {
+        message: "Verification email sent",
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -267,4 +401,6 @@ module.exports = {
   current,
   updateSub,
   updateAvatar,
+  verifyEmail,
+  sendVerification,
 };
